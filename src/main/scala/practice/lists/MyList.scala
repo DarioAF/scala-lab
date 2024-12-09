@@ -10,10 +10,13 @@ sealed abstract class MyList[+T] {
   def ::[S >: T](elem: S): MyList[S] = new::(elem, this)
   def ++[S >: T](list: MyList[S]): MyList[S]
 
+  def reverse: MyList[T]
+  def apply(index: Int): T
+  def length: Int
+
   def map[S](f:T => S): MyList[S]
   def flatMap[S](f: T => MyList[S]): MyList[S]
   def filter(f: T => Boolean): MyList[T]
-  def reverse: MyList[T]
 }
 
 case object Nil extends MyList[Nothing] {
@@ -25,6 +28,8 @@ case object Nil extends MyList[Nothing] {
   override def ++[S >: Nothing](list: MyList[S]): MyList[S] = list
 
   override def reverse: MyList[Nothing] = Nil
+  override def apply(index: Int): Nothing = throw new NoSuchElementException
+  override def length: Int = 0
 
   override def map[S](f: Nothing => S): MyList[S] = Nil
   override def flatMap[S](f: Nothing => MyList[S]): MyList[S] = Nil
@@ -62,6 +67,27 @@ case class ::[+T](override val head: T, override val tail: MyList[T]) extends My
     recAux(this, Nil)
   }
 
+  override def apply(index: Int): T = {
+    // complexity: O(min(N, index))
+    @tailrec def iteratorTailRec(remaining: MyList[T], acc: Int): T = {
+      if (index == acc) remaining.head
+      else iteratorTailRec(remaining.tail, acc + 1)
+    }
+
+    if (index < 0) throw new NoSuchElementException
+    else iteratorTailRec(this, 0)
+  }
+
+  override def length: Int = {
+    // complexity: O(N)
+    @tailrec def iteratorTailRec(remaining: MyList[T], acc: Int): Int = {
+      if (remaining.isEmpty) acc
+      else iteratorTailRec(remaining.tail, acc + 1)
+    }
+
+    iteratorTailRec(this, 0)
+  }
+  
   override def map[S](f: T => S): MyList[S] = {
     // complexity: O(N)
     @tailrec def mapTailRec(remaining: MyList[T], result: MyList[S] = Nil): MyList[S] = {
@@ -77,12 +103,12 @@ case class ::[+T](override val head: T, override val tail: MyList[T]) extends My
       else if (!intermediate.isEmpty) flattenTailRec(remaining, intermediate.tail, intermediate.head :: res)
       else flattenTailRec(remaining.tail, remaining.head, res)
     }
-    
+
     @tailrec def toListsTailrec(remaining: MyList[T], acc: MyList[MyList[S]] = Nil): MyList[S] = {
       if (remaining.isEmpty) flattenTailRec(acc, Nil, Nil)
       else toListsTailrec(remaining.tail, f(remaining.head).reverse :: acc)
     }
-    
+
     // complexity: sum of all lengths of f(x) = Z => O(N + Z)
     toListsTailrec(this)
   }

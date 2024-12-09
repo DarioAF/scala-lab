@@ -21,8 +21,15 @@ object Playground extends App {
     val otherList = "D" :: "E"  :: "F" :: nilList
     val appended = myABCList ++ otherList
     println(s"$myABCList ++ $otherList = $appended")
+
+    println("## Apply")
+    println(s"take $appended (3) -> ${appended(3)}")
+
+    println("## Length")
+    println(s"$appended .length -> ${appended.length}")
+
   }
-//  basicOperations()
+  basicOperations()
 
   def mapFilterFlatMapOperations(): Unit = {
     println("# map f(x)")
@@ -32,5 +39,5 @@ object Playground extends App {
     println("# flatmap")
     println(s"$my123List -> f(_ -> _, _*2) -> ${my123List.flatMap(x => x :: x * 2 :: Nil)}")
   }
-  mapFilterFlatMapOperations()
+//  mapFilterFlatMapOperations()
 }
