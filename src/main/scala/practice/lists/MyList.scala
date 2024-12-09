@@ -1,8 +1,13 @@
 package practice.lists
 
 import scala.annotation.tailrec
+import scala.util.Random
 
-sealed abstract class MyList[+T] {
+trait RND {
+  val rnd = new Random(System.currentTimeMillis())
+}
+
+sealed abstract class MyList[+T] extends RND {
   def head: T
   def tail: MyList[T]
   def isEmpty: Boolean
@@ -25,6 +30,9 @@ sealed abstract class MyList[+T] {
   Example: [1,1,2,3,3,3,3,3,4,4,4,5,6].rle = [(1, 2), (2, 1), (3, 5), (4, 3), (5, 1), (6, 1)]
    */
   def rle: MyList[(T, Int)]
+  def duplicateEach(k: Int): MyList[T]
+  def rotate(k: Int): MyList[T]
+  def sample(k: Int): MyList[T]
 }
 
 case object Nil extends MyList[Nothing] {
@@ -45,6 +53,9 @@ case object Nil extends MyList[Nothing] {
   override def filter(f: Nothing => Boolean): MyList[Nothing] = Nil
 
   override def rle: MyList[(Nothing, Int)] = Nil
+  override def duplicateEach(k: Int): MyList[Nothing] = Nil
+  override def rotate(k: Int): MyList[Nothing] = Nil
+  override def sample(k: Int): MyList[Nothing] = Nil
 }
 
 case class ::[+T](override val head: T, override val tail: MyList[T]) extends MyList[T] {
@@ -154,5 +165,48 @@ case class ::[+T](override val head: T, override val tail: MyList[T]) extends My
       else rleTailRec(remaining.tail, (remaining.head, 1), currentTuple :: acc)
     }
     rleTailRec(this.tail, (this.head, 1), Nil).reverse
+  }
+
+  override def duplicateEach(k: Int): MyList[T] = {
+    // complexity: O(N * K)
+    @tailrec def recAux(remaining: MyList[T], dtimes: Int, result: MyList[T]): MyList[T] = {
+      if (remaining.isEmpty && dtimes <= 1) result
+      else if (dtimes > 1) recAux(remaining, dtimes - 1, result.head :: result)
+      else recAux(remaining.tail, k, remaining.head :: result)
+    }
+
+    recAux(this.tail, k, this.head :: Nil).reverse
+  }
+
+  override def rotate(k: Int): MyList[T] = {
+    @tailrec def tailrec(remaining: MyList[T], i: Int, rlist: MyList[T]): MyList[T] = {
+      if (remaining.isEmpty && i == 0) this
+      else if (remaining.isEmpty) tailrec(this, i, Nil)
+      else if (i == 0) remaining ++ rlist.reverse
+      else tailrec(remaining.tail, i - 1, remaining.head :: rlist)
+    }
+    assert(k > 0)
+    tailrec(this, k, Nil)
+  }
+
+  override def sample(k: Int): MyList[T] = {
+    @tailrec def tailrec(remaining: MyList[T], n: Int): T = {
+      if (n == 0) remaining.head
+      else tailrec(remaining.tail, n - 1)
+    }
+
+    val l = this.length
+    (1 to k).map(_ => tailrec(this, rnd.nextInt(l)))
+      .foldLeft[MyList[T]](Nil)((acc, n) => n :: acc)
+  }
+}
+
+object MyList {
+  def from[T](iterable: Iterable[T]): MyList[T] = {
+    @tailrec def convertToRListRec(remaining: Iterable[T], acc: MyList[T]): MyList[T] = {
+      if (remaining.isEmpty) acc
+      else convertToRListRec(remaining.tail, remaining.head :: acc)
+    }
+    convertToRListRec(iterable, Nil).reverse
   }
 }

@@ -49,5 +49,26 @@ object Playground extends App {
     println("# run-length encoding")
     println(s"$aList -> ${aList.rle}")
   }
-  rleOperation()
+//  rleOperation()
+
+  def duplicateEach(k: Int) = {
+    println("# duplicate each")
+    println(s"$my123List (x $k) -> ${my123List.duplicateEach(k)}")
+  }
+//  duplicateEach(3)
+
+  def rotate(k: Int) = {
+    println("# rotate")
+    println(s"$my123List (rotation: $k) -> ${my123List.rotate(k)}")
+  }
+  rotate(2)
+
+  def sample(k: Int) = {
+    val aList = MyList.from(1 to 50)
+    println("# sample")
+    println(s"from (1 to 50) sampling $k: -> ${aList.sample(k)}")
+  }
+  sample(10)
+
+
 }
