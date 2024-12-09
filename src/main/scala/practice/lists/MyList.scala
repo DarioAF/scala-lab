@@ -13,10 +13,18 @@ sealed abstract class MyList[+T] {
   def reverse: MyList[T]
   def apply(index: Int): T
   def length: Int
+  def removeAt(index: Int): MyList[T]
 
   def map[S](f:T => S): MyList[S]
   def flatMap[S](f: T => MyList[S]): MyList[S]
   def filter(f: T => Boolean): MyList[T]
+
+  /*
+  # run-length encoding
+  Count consecutive duplicates, and return them in a list of tuples
+  Example: [1,1,2,3,3,3,3,3,4,4,4,5,6].rle = [(1, 2), (2, 1), (3, 5), (4, 3), (5, 1), (6, 1)]
+   */
+  def rle: MyList[(T, Int)]
 }
 
 case object Nil extends MyList[Nothing] {
@@ -30,10 +38,13 @@ case object Nil extends MyList[Nothing] {
   override def reverse: MyList[Nothing] = Nil
   override def apply(index: Int): Nothing = throw new NoSuchElementException
   override def length: Int = 0
+  override def removeAt(index: Int): MyList[Nothing] = Nil
 
   override def map[S](f: Nothing => S): MyList[S] = Nil
   override def flatMap[S](f: Nothing => MyList[S]): MyList[S] = Nil
   override def filter(f: Nothing => Boolean): MyList[Nothing] = Nil
+
+  override def rle: MyList[(Nothing, Int)] = Nil
 }
 
 case class ::[+T](override val head: T, override val tail: MyList[T]) extends MyList[T] {
@@ -87,7 +98,18 @@ case class ::[+T](override val head: T, override val tail: MyList[T]) extends My
 
     iteratorTailRec(this, 0)
   }
-  
+
+  override def removeAt(index: Int): MyList[T] = {
+    // complexity: O(N)
+    @tailrec def removeTailRec(remaining: MyList[T], pos: Int = 0, acc: MyList[T] = Nil): MyList[T] = {
+      if (remaining.isEmpty) acc
+      else if (index == pos) acc.reverse ++ remaining.tail
+      else removeTailRec(remaining.tail, pos + 1, remaining.head :: acc)
+    }
+    if (index < 0) this
+    else removeTailRec(this)
+  }
+
   override def map[S](f: T => S): MyList[S] = {
     // complexity: O(N)
     @tailrec def mapTailRec(remaining: MyList[T], result: MyList[S] = Nil): MyList[S] = {
@@ -121,5 +143,16 @@ case class ::[+T](override val head: T, override val tail: MyList[T]) extends My
       else filterTailRec(remaining.tail, acc)
     }
     filterTailRec(this)
+  }
+
+  override def rle: MyList[(T, Int)] = {
+    // complexity: O(N)
+    def rleTailRec(remaining: MyList[T], currentTuple: (T, Int), acc: MyList[(T, Int)]): MyList[(T, Int)] = {
+      if (remaining.isEmpty && currentTuple._2 == 0) acc
+      else if (remaining.isEmpty) currentTuple :: acc
+      else if (remaining.head == currentTuple._1) rleTailRec(remaining.tail, currentTuple.copy(_2 = currentTuple._2 + 1), acc)
+      else rleTailRec(remaining.tail, (remaining.head, 1), currentTuple :: acc)
+    }
+    rleTailRec(this.tail, (this.head, 1), Nil).reverse
   }
 }

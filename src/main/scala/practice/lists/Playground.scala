@@ -28,8 +28,11 @@ object Playground extends App {
     println("## Length")
     println(s"$appended .length -> ${appended.length}")
 
+    println("## Remove at")
+    println(s"remove (2) $appended -> ${appended.removeAt(2)}")
+
   }
-  basicOperations()
+//  basicOperations()
 
   def mapFilterFlatMapOperations(): Unit = {
     println("# map f(x)")
@@ -40,4 +43,11 @@ object Playground extends App {
     println(s"$my123List -> f(_ -> _, _*2) -> ${my123List.flatMap(x => x :: x * 2 :: Nil)}")
   }
 //  mapFilterFlatMapOperations()
+
+  def rleOperation(): Unit = {
+    val aList = 1 :: 1 :: 2 :: 3 :: 3 :: 3 :: 3 :: 3 :: 4 :: 4 :: 4 :: 5 :: 6 :: Nil
+    println("# run-length encoding")
+    println(s"$aList -> ${aList.rle}")
+  }
+  rleOperation()
 }
