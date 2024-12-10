@@ -13,6 +13,9 @@ sealed abstract class BTree[+T] {
   def size: Int
 
   def collectLeaves: List[BTree[T]]
+  def collectNodes(level: Int): List[BTree[T]]
+
+  def mirror: BTree[T]
 }
 
 case object BEnd extends BTree[Nothing] {
@@ -25,7 +28,10 @@ case object BEnd extends BTree[Nothing] {
   override def leafCount: Int = 0
   override val size: Int = 0
 
-  override def collectLeaves: List[BTree[Nothing]] = List()
+  override def collectLeaves: List[BTree[Nothing]] = List.empty
+  override def collectNodes(level: Int): List[BTree[Nothing]] = List.empty
+
+  override def mirror: BTree[Nothing] = this
 }
 
 case class BNode[+T](override val value: T, override val left: BTree[T], override val right: BTree[T]) extends BTree[T] {
@@ -47,5 +53,40 @@ case class BNode[+T](override val value: T, override val left: BTree[T], overrid
     }
 
     tailRec(List(this), List.empty)
+  }
+
+  override def collectNodes(level: Int): List[BTree[T]] = {
+    @tailrec def tailrec(currentLevel: Int, nodes: List[BTree[T]]): List[BTree[T]] = {
+      if (nodes.isEmpty) List.empty
+      else if (currentLevel == level) nodes
+      else {
+        val expandedNodes = for {
+          node <- nodes
+          child <- List(node.left, node.right) if !child.isEmpty
+        } yield child
+
+        tailrec(currentLevel + 1, expandedNodes)
+      }
+    }
+
+    if (level < 0) List.empty
+    else tailrec(0, List(this))
+  }
+
+  override def mirror: BTree[T] = {
+    @tailrec
+    def tailrec(todo: List[BTree[T]], expanded: Set[BTree[T]], done: List[BTree[T]]): BTree[T] = {
+      if (todo.isEmpty) done.head
+      else if (todo.head.isEmpty || todo.head.isLeaf) tailrec(todo.tail, expanded, todo.head :: done)
+      else if (!expanded.contains(todo.head)) tailrec(todo.head.left :: todo.head.right :: todo, expanded + todo.head, done)
+      else {
+        val newLeft = done.head
+        val newRight = done.tail.head
+        val newNode = BNode(todo.head.value, newLeft, newRight)
+        tailrec(todo.tail, expanded, newNode :: done.drop(2))
+      }
+    }
+
+    tailrec(List(this), Set.empty, List.empty)
   }
 }

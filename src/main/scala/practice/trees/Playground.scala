@@ -2,13 +2,13 @@ package practice.trees
 
 object Playground extends App {
   val btreeStr ="""
-      |        ______1_______
-      |       /              \
-      |     __2__           __6__
-      |    /     \         /     \
-      |   3       4       7       8
-      |            \
-      |             5
+      |       ______1_______
+      |      /              \
+      |   __2__            __6__
+      |  /     \          /     \
+      | 3       4        7       8
+      |          \
+      |           5
       |""".stripMargin
   val btree = BNode(1,
     BNode(2,
@@ -29,7 +29,14 @@ object Playground extends App {
     println(btreeStr)
     println(s"size: ${btree.size}")
     println(s"leaves: ${btree.collectLeaves}")
-
+    ((lvl: Int) => println(s"nodes (lvl $lvl): ${btree.collectNodes(lvl)}"))(2)
   }
-  basicOperations()
+//  basicOperations()
+
+  def mirror(): Unit = {
+    println("# mirror")
+    println(btreeStr)
+    println(btree.mirror.toString)
+  }
+  mirror()
 }
