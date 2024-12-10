@@ -16,6 +16,8 @@ sealed abstract class BTree[+T] {
   def collectNodes(level: Int): List[BTree[T]]
 
   def mirror: BTree[T]
+  def sameShapeAs[S >: T](that: BTree[S]): Boolean
+  def isSymmetrical: Boolean
 }
 
 case object BEnd extends BTree[Nothing] {
@@ -32,6 +34,8 @@ case object BEnd extends BTree[Nothing] {
   override def collectNodes(level: Int): List[BTree[Nothing]] = List.empty
 
   override def mirror: BTree[Nothing] = this
+  override def sameShapeAs[S >: Nothing](that: BTree[S]): Boolean = that.isEmpty
+  override def isSymmetrical: Boolean = true
 }
 
 case class BNode[+T](override val value: T, override val left: BTree[T], override val right: BTree[T]) extends BTree[T] {
@@ -89,4 +93,18 @@ case class BNode[+T](override val value: T, override val left: BTree[T], overrid
 
     tailrec(List(this), Set.empty, List.empty)
   }
+
+  override def sameShapeAs[S >: T](that: BTree[S]): Boolean = {
+    @tailrec def tailrec(a: List[BTree[S]], b: List[BTree[S]]): Boolean = {
+      if (a.isEmpty && b.isEmpty) true
+      else if ((a.isEmpty && b.nonEmpty) || (b.isEmpty && a.nonEmpty)) false
+      else if ((a.head.isEmpty && !b.head.isEmpty) || (b.head.isEmpty && !a.head.isEmpty)) false
+      else if (a.head.isEmpty && b.head.isEmpty) tailrec(a.tail, b.tail)
+      else tailrec(a.head.right :: a.head.left :: a.tail, b.head.right :: b.head.left :: b.tail)
+    }
+
+    tailrec(List(this), List(that))
+  }
+
+  override def isSymmetrical: Boolean = this.sameShapeAs(this.mirror)
 }

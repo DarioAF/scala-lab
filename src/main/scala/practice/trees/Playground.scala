@@ -28,8 +28,8 @@ object Playground extends App {
     println("# basic operations")
     println(btreeStr)
     println(s"size: ${btree.size}")
-    println(s"leaves: ${btree.collectLeaves}")
-    ((lvl: Int) => println(s"nodes (lvl $lvl): ${btree.collectNodes(lvl)}"))(2)
+    println(s"leaves: ${btree.collectLeaves.map(_.value)}")
+    ((lvl: Int) => println(s"nodes (lvl $lvl): ${btree.collectNodes(lvl).map(_.value)}"))(2)
   }
 //  basicOperations()
 
@@ -38,5 +38,40 @@ object Playground extends App {
     println(btreeStr)
     println(btree.mirror.toString)
   }
-  mirror()
+//  mirror()
+
+  def sameShapeAs(): Unit = {
+    val tree2 = BNode(2,
+      BNode(4,
+        BNode(3, BEnd, BEnd),
+        BNode(1,
+          BEnd,
+          BNode(6, BEnd, BEnd),
+        )
+      ),
+      BNode(6,
+        BNode(4, BEnd, BEnd),
+        BNode(8, BEnd, BEnd)
+      )
+    )
+    val tree3 = BNode(2,
+      BNode(4,
+        BNode(3, BEnd, BEnd),
+        BNode(1,
+          BNode(4, BEnd, BEnd),
+          BNode(6, BEnd, BEnd),
+        )
+      ),
+      BNode(6,
+        BNode(4, BEnd, BEnd),
+        BNode(8, BEnd, BEnd)
+      )
+    )
+
+    println("# same shape")
+    println(btree.sameShapeAs(tree2))
+    println(btree.sameShapeAs(tree3))
+  }
+
+  sameShapeAs()
 }
