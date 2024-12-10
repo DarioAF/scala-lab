@@ -72,6 +72,13 @@ object Playground extends App {
     println(btree.sameShapeAs(tree2))
     println(btree.sameShapeAs(tree3))
   }
+//  sameShapeAs()
 
-  sameShapeAs()
+  def toListOp(): Unit = {
+    println("# to List")
+    println(btreeStr)
+    println(s"pre-order list: ${btree.toList(BTree.ListOrder.PreOrder)}")
+    println(s"per-level list: ${btree.toList(BTree.ListOrder.PerLevel)}")
+  }
+  toListOp()
 }

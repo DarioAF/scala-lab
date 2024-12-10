@@ -18,6 +18,7 @@ sealed abstract class BTree[+T] {
   def mirror: BTree[T]
   def sameShapeAs[S >: T](that: BTree[S]): Boolean
   def isSymmetrical: Boolean
+  def toList(order: BTree.ListOrder): List[T]
 }
 
 case object BEnd extends BTree[Nothing] {
@@ -36,6 +37,7 @@ case object BEnd extends BTree[Nothing] {
   override def mirror: BTree[Nothing] = this
   override def sameShapeAs[S >: Nothing](that: BTree[S]): Boolean = that.isEmpty
   override def isSymmetrical: Boolean = true
+  override def toList(order: BTree.ListOrder): List[Nothing] = List.empty
 }
 
 case class BNode[+T](override val value: T, override val left: BTree[T], override val right: BTree[T]) extends BTree[T] {
@@ -107,4 +109,30 @@ case class BNode[+T](override val value: T, override val left: BTree[T], overrid
   }
 
   override def isSymmetrical: Boolean = this.sameShapeAs(this.mirror)
+
+  override def toList(order: BTree.ListOrder): List[T] = order match {
+      case BTree.ListOrder.PreOrder => preOrder(List(this))
+      case BTree.ListOrder.PerLevel => perLevel(List(this))
+  }
+
+  @tailrec private def preOrder[S >: T](todo: List[BTree[S]], res: List[S] = List.empty): List[S] = {
+    if (todo.isEmpty) res.reverse
+    else if (todo.head.isEmpty) preOrder(todo.tail, res)
+    else preOrder(todo.head.left :: todo.head.right :: todo.tail, todo.head.value :: res)
+  }
+  @tailrec private def perLevel[S >: T](todo: List[BTree[S]], res: List[S] = List.empty): List[S] = {
+    if (todo.isEmpty) res
+    else {
+      val nextLevel = todo.flatMap(n => List(n.left, n.right)).filter(!_.isEmpty)
+      val levelValues = todo.map(_.value)
+      perLevel(nextLevel, res ++ levelValues)
+    }
+  }
+
+}
+
+object BTree {
+  enum ListOrder {
+    case PreOrder, PerLevel
+  }
 }
