@@ -78,6 +78,8 @@ object Playground extends App {
     println("# to List")
     println(btreeStr)
     println(s"pre-order list: ${btree.toList(BTree.ListOrder.PreOrder)}")
+    println(s"in-order list: ${btree.toList(BTree.ListOrder.InOrder)}")
+    println(s"post-order list: ${btree.toList(BTree.ListOrder.PostOrder)}")
     println(s"per-level list: ${btree.toList(BTree.ListOrder.PerLevel)}")
   }
   toListOp()

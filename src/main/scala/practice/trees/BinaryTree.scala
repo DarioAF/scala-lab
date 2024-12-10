@@ -1,6 +1,7 @@
 package practice.trees
 
 import scala.annotation.tailrec
+import scala.collection.immutable.Queue
 
 sealed abstract class BTree[+T] {
   def value: T
@@ -112,6 +113,8 @@ case class BNode[+T](override val value: T, override val left: BTree[T], overrid
 
   override def toList(order: BTree.ListOrder): List[T] = order match {
       case BTree.ListOrder.PreOrder => preOrder(List(this))
+      case BTree.ListOrder.InOrder => inOrder(List(this))
+      case BTree.ListOrder.PostOrder => postOrder(List(this))
       case BTree.ListOrder.PerLevel => perLevel(List(this))
   }
 
@@ -119,6 +122,23 @@ case class BNode[+T](override val value: T, override val left: BTree[T], overrid
     if (todo.isEmpty) res.reverse
     else if (todo.head.isEmpty) preOrder(todo.tail, res)
     else preOrder(todo.head.left :: todo.head.right :: todo.tail, todo.head.value :: res)
+  }
+  @tailrec private def inOrder[S >: T](todo: List[BTree[S]], visited: Set[BTree[S]] = Set.empty,
+                                       acc: Queue[S] = Queue.empty): List[S] = {
+    if (todo.isEmpty) acc.toList
+    else {
+      val node = todo.head
+      if (node.isEmpty) inOrder(todo.tail, visited, acc)
+      else if (node.isLeaf || visited.contains(node)) inOrder(todo.tail, visited, acc :+ node.value)
+      else inOrder(node.left :: node :: node.right :: todo.tail, visited + node, acc)
+    }
+  }
+  @tailrec private def postOrder[S >: T](todo: List[BTree[S]], visited: Set[BTree[S]] = Set.empty,
+                                 res: Queue[S] = Queue.empty): List[S] = {
+    if (todo.isEmpty) res.toList
+    else if (todo.head.isEmpty) postOrder(todo.tail, visited, res)
+    else if (todo.head.isLeaf || visited.contains(todo.head)) postOrder(todo.tail, visited, res :+ todo.head.value)
+    else postOrder(todo.head.left :: todo.head.right :: todo.head :: todo.tail, visited + todo.head, res)
   }
   @tailrec private def perLevel[S >: T](todo: List[BTree[S]], res: List[S] = List.empty): List[S] = {
     if (todo.isEmpty) res
@@ -133,6 +153,6 @@ case class BNode[+T](override val value: T, override val left: BTree[T], overrid
 
 object BTree {
   enum ListOrder {
-    case PreOrder, PerLevel
+    case PreOrder, InOrder, PostOrder, PerLevel
   }
 }
