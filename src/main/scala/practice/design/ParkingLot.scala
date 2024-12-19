@@ -1,5 +1,10 @@
 package practice.design
 
+import practice.design.ParkingSpotType.ParkingSpotType
+import practice.design.SpotState.SpotState
+
+import scala.collection.mutable
+
 /**
  * Goals: Design a parking lot using object-oriented principles
  *
@@ -22,7 +27,104 @@ package practice.design
  * These are just a few assumptions. Feel free to ask your interviewer about more assumptions as needed
  */
 
-// Enum to represent spot types
+
+/* Model
+
+     ┌────────────────────────────────────────────┐
+     │ParkingLotService                           │
+     ├────────────────────────────────────────────┤
+     │-spotsQuantity: Map[ParkingSpotType, Int]   │
+ ┌───┤-spots                                      │
+ │ ┌─┤-cache                                      │
+ │ │ ├────────────────────────────────────────────┤
+ │ │ │+CheckIn(Vehicle, ParkingSpotType, Int)     │
+ │ │ │+CheckOut(Vehicle)                          │
+ │ │ └────────────────────────────────────────────┘
+ │ │ ┌────────────────────────────────────────────┐
+ │ └─┤Cache                                       │
+ │   ├────────────────────────────────────────────┤
+ │   │+spotAvailability: Map[ParkingSpotType, Int]│
+ │   │+parkedVehicles: Map[Vehicle.id, Vehicle]   │
+ │   └────────────────────────────────────────────┘
+ │   ┌────────────────────────────────────────────────┐
+ └───┤ParkingLotSpots                                 │
+     ├────────────────────────────────────────────────┤
+   ┌─┤-spots: Map[ParkingSpotType, Map[Spot.id, Spot]]│
+   │ ├────────────────────────────────────────────────┤
+   │ │+Availability(ParkingSpotType): List[Spot.id]   │
+   │ │+Allocate(List[Spot.id])                        │
+   │ │+Deallocate(List[Spot.id])                      │
+   │ └────────────────────────────────────────────────┘
+   │ ┌──────────────────────────────────┐
+   └─┤Spot                              │
+     ├──────────────────────────────────┤
+     │-id:       Int                    │
+     │-state:    SpotState              │
+     │+spotType: ParkingSpotType        │
+     │+spotId:   String                 │
+     ├──────────────────────────────────┤
+     │+isOccupied: Boolean              │
+     │+modifyState(action: Action): Unit│
+     └──────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────┐
+┌►│Vehicle                                              │
+│ ├─────────────────────────────────────────────────────┤
+│ │+id:              String                             │
+│ │+type:            String                             │
+│ │+spotConsumption: List[(ParkingSpotType, Int)]       │
+│ │+parkedInSpots:   Map[ParkingSpotType, List[Spot.id]]│
+│ └─────────────────────────────────────────────────────┘
+│ ┌─────────────┐
+├─┤Car          │
+│ ├─────────────┤
+│ │+type = "Car"│
+│ └─────────────┘
+│ ┌─────────────┐
+├─┤Van          │
+│ ├─────────────┤
+│ │+type = "Van"│
+│ └─────────────┘
+│ ┌────────────────────┐
+└─┤Motorcycle          │
+  ├────────────────────┤
+  │+type = "Motorcycle"│
+  └────────────────────┘
+
+
+ ParkingSpotType = (Compact|Regular|Large)
+ SpotState       = (Free|Occupied)
+ */
+
+/* CheckIn Flow
+             ┌─────────────────┐                                  ┌─────┐            ┌───────────────┐                         ┌─────┐
+             │ParkingLotService│                                  │Cache│            │ParkingLotSpots│                         │Spots│
+             └────────┬────────┘                                  └──┬──┘            └───────┬───────┘                         └──┬──┘
+                      │                                              │                       │                                    │
+                      │                                              │                       │                                    │
+CheckIn(Vehicle)─────►├──────────────find Vehicle.spotConsumption    │                       │                                    │
+                      │              (type, capacity) =>             │                       │                                    │
+                      │                spotAvailability(type)───────►│                       │                                    │
+◄──false──noCapacity──┼───────┬────────availability >= capacity◄─────┤                       │                                    │
+                      │       └─true─────────────────────────────────┼───Allocate(spotIds)──►├─────foreach isOccupied(spot)──────►│
+                      │                                              │◄──false:─update─┬─────┼──┬─────────────────────────────────┤
+◄──false──noCapacity──┼──────────────────────────────────────────────┼─────────────────┘     │  └──true:modifyState(Spot.Occupy)─►│
+                      │                                              │                       │                                    │
+                      │                                              └◄──update────────┬─────┴────────────────────────────────────┘
+◄──true───────────────┴────────────────────────────────────────────────────────────────┘
+*/
+
+/* CheckOut Flow
+              ┌─────────────────┐      ┌───────────────┐               ┌─────┐        ┌─────┐
+              │ParkingLotService│      │ParkingLotSpots│               │Spots│        │Cache│
+              └────────┬────────┘      └───────┬───────┘               └──┬──┘        └──┬──┘
+                       │                       │                          │              │   
+                       │                       │                          │              │   
+CheckOut(Vehicle)─────►├────Deallocate(_)─────►├─modifyState(Spot.Free)──►│              │   
+                       │                       ├──────────────────────────┼───update────►│   
+◄──────────────────────┴───────────────────────┴──────────────────────────┴──────────────┘   
+ */
+
 object ParkingSpotType extends Enumeration {
   type ParkingSpotType = Value
   val Compact: Value = Value("C")
@@ -30,37 +132,65 @@ object ParkingSpotType extends Enumeration {
   val Large: Value = Value("L")
 }
 
-// Vehicle base trait
-trait Vehicle {
-  var parkedInSpots: List[String] = List.empty
-  val vehicleType: String
+object SpotState extends Enumeration {
+  type SpotState = Value
+  val Free, Occupied = Value
 }
 
-// Specific vehicle types
-class Motorcycle extends Vehicle {
+trait Vehicle {
+  val id: String
+  val vehicleType: String
+  val spotConsumption: List[(ParkingSpotType,  Int)]
+  var parkedInSpots: Option[(ParkingSpotType, List[String])] = None
+}
+
+class Motorcycle(override val id: String, override val spotConsumption: List[(ParkingSpotType,  Int)]) extends Vehicle {
   val vehicleType: String = "Motorcycle"
 }
+object Motorcycle {
+  private val consumption = List[(ParkingSpotType,  Int)](
+    (ParkingSpotType.Compact, 1),(ParkingSpotType.Regular, 1),(ParkingSpotType.Large, 1)
+  )
+  def apply(id: String): Motorcycle = {
+    new Motorcycle(id, consumption)
+  }
+}
 
-class Car extends Vehicle {
+class Car(override val id: String, override val spotConsumption: List[(ParkingSpotType,  Int)]) extends Vehicle {
   val vehicleType: String = "Car"
 }
-
-class Van extends Vehicle {
-  val vehicleType: String = "Van"
+object Car {
+  private val consumption = List[(ParkingSpotType, Int)](
+    (ParkingSpotType.Regular, 1), (ParkingSpotType.Large, 1)
+  )
+  def apply(id: String): Car = {
+    new Car(id, consumption)
+  }
 }
 
-// A parking spot class
-case class Spot(id: Int, spotType: ParkingSpotType.ParkingSpotType) {
+class Van(override val id: String, override val spotConsumption: List[(ParkingSpotType,  Int)]) extends Vehicle {
+  val vehicleType: String = "Van"
+}
+object Van {
+  private val consumption = List[(ParkingSpotType, Int)](
+    (ParkingSpotType.Large, 1), (ParkingSpotType.Regular, 3)
+  )
+  def apply(id: String): Van = {
+    new Van(id, consumption)
+  }
+}
+
+case class Spot(private val position: Int, spotType: ParkingSpotType) {
   import Spot._
 
-  private var occupied: Boolean = false
+  val id: String = position.toString + spotType.toString
+  private var state: SpotState = SpotState.Free
 
-  val spotId: String = id.toString + spotType.toString
-  def isOccupied: Boolean = occupied
+  def isOccupied: Boolean = state.eq(SpotState.Occupied)
 
   def modifyState(action: Action): Unit = action match {
-    case Occupy if !isOccupied => occupied = true
-    case Free if isOccupied => occupied = false
+    case Occupy if !isOccupied => state = SpotState.Occupied
+    case Free if isOccupied => state = SpotState.Free
 
     case Occupy => throw new IllegalStateException("Spot is already occupied")
     case Free => throw new IllegalStateException("Spot is already free")
@@ -68,8 +198,7 @@ case class Spot(id: Int, spotType: ParkingSpotType.ParkingSpotType) {
   }
 
   override def toString: String =
-    "[" + (if (isOccupied) Console.RED else Console.GREEN) + spotId + Console.RESET + "]"
-
+    "[" + (if (isOccupied) Console.RED else Console.GREEN) + id + Console.RESET + "]"
 }
 object Spot {
   abstract class Action
@@ -77,166 +206,144 @@ object Spot {
   case object Free extends Action
 }
 
-// Parking lot class
-class ParkingLot(val compactSpots: Int, val regularSpots: Int, val largeSpots: Int) {
-  import Spot._
-  import ParkingSpotType._
+class ParkingLotSpots(private val spots: Map[ParkingSpotType, Map[String, Spot]]) {
+  import ParkingLotSpots._
 
-  val totalSpots: Int = compactSpots + regularSpots + largeSpots
+  def availability(spotType: ParkingSpotType): List[String] = spots.getOrElse(spotType, List.empty).flatMap{
+    case (id, spot) if !spot.isOccupied => Some(id)
+    case _ => None
+  }.toList
 
-  private val compactSpotsList = (1 to compactSpots).map(id => id.toString + Compact.toString -> Spot(id, Compact)).toMap
-  private val regularSpotsList = (1 to regularSpots).map(id => id.toString + Regular.toString -> Spot(id, Regular)).toMap
-  private val largeSpotsList = (1 to largeSpots).map(id => id.toString + Large.toString -> Spot(id, Large)).toMap
-  val spots: List[Spot] = compactSpotsList.values.toList ++ regularSpotsList.values.toList ++ largeSpotsList.values.toList
+  def receive(action: Action): Boolean = {
+    val targetSpots = getSpotsById(action.spotIds)
+    val (invalidAction, modifyState) = action match {
+      case Allocate(_) => ((s: Spot) => s.isOccupied, (spot: Spot) => spot.modifyState(Spot.Occupy) )
+      case Deallocate(_) => ((s: Spot) => !s.isOccupied, (spot: Spot) => spot.modifyState(Spot.Free))
+    }
 
-  // Helper function to get all available spots of a particular type
-  private def availableSpots(spotType: ParkingSpotType.ParkingSpotType): Int = {
-    spots.count(s => s.spotType == spotType && !s.isOccupied)
-  }
-
-  // Park a vehicle
-  def park(vehicle: Vehicle): List[String] = vehicle match {
-    case _: Motorcycle =>
-      compactSpotsList.find((_, s) => !s.isOccupied) match {
-        case Some(spotId, spot) =>
-          spot.modifyState(Occupy)
-          vehicle.parkedInSpots = List(spotId)
-          vehicle.parkedInSpots
-        case None => regularSpotsList.find((_, s) => !s.isOccupied) match {
-          case Some(spotId, spot) =>
-            spot.modifyState(Occupy)
-            vehicle.parkedInSpots = List(spotId)
-            vehicle.parkedInSpots
-          case None => largeSpotsList.find((_, s) => !s.isOccupied) match {
-            case Some(spotId, spot) =>
-              spot.modifyState(Occupy)
-              vehicle.parkedInSpots = List(spotId)
-              vehicle.parkedInSpots
-            case None => List.empty
-          }
-        }
-      }
-
-    case _: Car =>
-      regularSpotsList.find((_, s) => !s.isOccupied) match {
-        case Some(spotId, spot) =>
-          spot.modifyState(Occupy)
-          vehicle.parkedInSpots = List(spotId)
-          vehicle.parkedInSpots
-        case None => largeSpotsList.find((_, s) => !s.isOccupied) match {
-          case Some(spotId, spot) =>
-            spot.modifyState(Occupy)
-            vehicle.parkedInSpots = List(spotId)
-            vehicle.parkedInSpots
-          case None => List.empty
-        }
-      }
-
-    case _: Van =>
-      largeSpotsList.find((_, s) => !s.isOccupied) match {
-        case Some(spotId, spot) =>
-          spot.modifyState(Occupy)
-          vehicle.parkedInSpots = List(spotId)
-          vehicle.parkedInSpots
-        case None =>
-          val consecutiveRegularSpots = regularSpotsList.filter((_, s) => !s.isOccupied).take(3)
-          if (consecutiveRegularSpots.size == 3) {
-            consecutiveRegularSpots.foreach((_, s) => s.modifyState(Occupy))
-            vehicle.parkedInSpots = consecutiveRegularSpots.map((_, s) => s.spotId).toList
-            vehicle.parkedInSpots
-          } else List.empty
-      }
-  }
-
-  // Free a spot based on the vehicle
-  def freeSpot(vehicle: Vehicle): Unit = vehicle match {
-    case _: Motorcycle =>
-      vehicle.parkedInSpots.foreach(id => compactSpotsList.get(id).foreach(_.modifyState(Free)))
-      vehicle.parkedInSpots = List.empty
-
-    case _: Car =>
-      vehicle.parkedInSpots.foreach { id =>
-        regularSpotsList.get(id) match {
-          case Some(s) => s.modifyState(Free)
-          case None => largeSpotsList.get(id).foreach(_.modifyState(Free))
-        }
-      }
-      vehicle.parkedInSpots = List.empty
-
-    case _: Van =>
-      if (vehicle.parkedInSpots.size == 1) vehicle.parkedInSpots.foreach(id => largeSpotsList.get(id).foreach(_.modifyState(Free)))
-      else vehicle.parkedInSpots.foreach(id => regularSpotsList.get(id).foreach(_.modifyState(Free)))
-      vehicle.parkedInSpots = List.empty
-  }
-
-  // Query the number of remaining spots
-  def remainingSpots: Int = spots.count(s => !s.isOccupied)
-
-  // Query if the parking lot is full
-  def isFull: Boolean = remainingSpots == 0
-
-  // Query if the parking lot is empty
-  def isEmpty: Boolean = remainingSpots == totalSpots
-
-}
-object ParkingLot {
-  implicit class Printable(parkingLot: ParkingLot) {
-    def printCurrentState(): Unit = {
-      println("== Parking Lot State ==")
-      println(s"Capacity: ${parkingLot.totalSpots}, Available: ${parkingLot.remainingSpots}")
-      println("Distribution:")
-      parkingLot.spots.foreach(s => print(s.toString))
-      println("\n=======================")
+    if (targetSpots.exists(invalidAction)) return false
+    targetSpots.foreach(modifyState)
+    action match {
+      case Allocate(_) => targetSpots.forall(_.isOccupied)
+      case Deallocate(_) => targetSpots.forall(!_.isOccupied)
+      case _ => false
     }
   }
+
+  def getAll: List[Spot] = spots.values.flatten.toList.map(_._2)
+
+  private def getSpotsById(spotIds: List[String]) =
+    spotIds.map(spots.values.flatten.toMap)
+}
+object ParkingLotSpots {
+  abstract class Action { val spotIds: List[String] }
+  case class Allocate(override val spotIds: List[String]) extends Action
+  case class Deallocate(override val spotIds: List[String]) extends Action
+
+  def apply(spotsQuantity: Map[ParkingSpotType, Int]): ParkingLotSpots = {
+    new ParkingLotSpots(spotsQuantity.map { (spotType, quantity) =>
+      spotType -> (1 to quantity).map(id => id.toString + spotType.toString -> Spot(id, spotType)).toMap
+    })
+  }
 }
 
-// Driver code to demonstrate usage
+class Cache(private val spotAvailability: mutable.Map[ParkingSpotType, Int]) {
+  private val parkedVehicles: mutable.Map[String, Vehicle] = mutable.Map.empty
+
+  def incAvailability(spotType: ParkingSpotType, quantity: Int): Unit =
+    spotAvailability.put(spotType, spotAvailability(spotType) + quantity)
+  def decAvailability(spotType: ParkingSpotType, quantity: Int): Unit =
+    spotAvailability.put(spotType, spotAvailability(spotType) - quantity)
+  def getSpotAvailability(spotType: ParkingSpotType): Int = spotAvailability(spotType)
+
+  def addVehicle(v: Vehicle): Unit = parkedVehicles.put(v.id, v)
+  def removeVehicle(v: Vehicle): Unit = parkedVehicles.remove(v.id)
+  def getParkedVehicles: List[String] = parkedVehicles.keys.toList
+}
+object Cache {
+  def apply(spotsQuantity: Map[ParkingSpotType, Int]): Cache = {
+    new Cache(spotsQuantity.to(mutable.Map))
+  }
+}
+
+class ParkingLot(private val spotsQuantity: Map[ParkingSpotType, Int]) {
+  import ParkingLotSpots._
+  private val spots = ParkingLotSpots(spotsQuantity)
+  private val cache = Cache(spotsQuantity)
+
+  def CheckIn(vehicle: Vehicle): List[String] = {
+    vehicle.spotConsumption.find((spotType, capacity) => cache.getSpotAvailability(spotType) >= capacity) match {
+      case Some((spotType, quantity)) =>
+        val availableSpotIds = spots.availability(spotType)
+        if (availableSpotIds.length >= quantity) {
+          val spotsToAllocate = availableSpotIds.take(quantity)
+          spots.receive(Allocate(spotsToAllocate))
+          vehicle.parkedInSpots = Some(spotType, spotsToAllocate)
+          cache.decAvailability(spotType, spotsToAllocate.length)
+          cache.addVehicle(vehicle)
+          spotsToAllocate
+        } else List.empty
+      case _ => List.empty
+    }
+  }
+  def CheckOut(vehicle: Vehicle): Unit = {
+    spots.receive(Deallocate(vehicle.parkedInSpots.get._2))
+    cache.incAvailability(vehicle.parkedInSpots.get._1, vehicle.parkedInSpots.get._2.length)
+    cache.removeVehicle(vehicle)
+    vehicle.parkedInSpots = None
+  }
+
+  def printCurrentState(): Unit = {
+    println("== Parking Lot State ==")
+    println(s"Capacity: ${spotsQuantity.values.sum}, Available: ${spots.getAll.count(!_.isOccupied)}")
+    println(s"Parked vehicles: ${cache.getParkedVehicles.length} -> ${cache.getParkedVehicles.mkString(",")}")
+    println("Distribution:")
+    spots.getAll.foreach(s => print(s.toString))
+    println("\n=======================")
+  }
+}
+
 object ParkingLotApp extends App {
-  import ParkingLot._
-  // Create a parking lot with 10 motorcycle spots, 5 regular spots, and 2 large spots
-  val compactSpots = 1
-  val regularSpots = 5
-  val largeSpots = 1
-  val parkingLot = new ParkingLot(compactSpots, regularSpots, largeSpots)
+
+  val spotsQuantity: Map[ParkingSpotType, Int] = Map(
+    ParkingSpotType.Compact -> 1,
+    ParkingSpotType.Regular -> 5,
+    ParkingSpotType.Large -> 1
+  )
+  val parkingLot = new ParkingLot(spotsQuantity)
 
   parkingLot.printCurrentState()
-
-  val motorcycle1 = new Motorcycle
-  val motorcycle2 = new Motorcycle
-  val car1 = new Car
-  val car2 = new Car
-  val car3 = new Car
-  val van1 = new Van
-  val van2 = new Van
+  
+  val motorcycle1 = Motorcycle("moto1")
+  val motorcycle2 = Motorcycle("moto2")
+  val car1 = Car("car1")
+  val car2 = Car("car2")
+  val car3 = Car("car3")
+  val van1 = Van("van1")
+  val van2 = Van("van2")
 
   // Park vehicles
-  println(s"Parking motorcycle1: ${parkingLot.park(motorcycle1).mkString(",")}")
-  println(s"Parking motorcycle2: ${parkingLot.park(motorcycle2).mkString(",")}")
-  println(s"Parking car1: ${parkingLot.park(car1).mkString(",")}")
-  println(s"Parking car2: ${parkingLot.park(car2).mkString(",")}")
-  println(s"Parking van1: ${parkingLot.park(van1).mkString(",")}")
-  println(s"Parking car3: ${parkingLot.park(car3).mkString(",")}")
+  println(s"Parking motorcycle1: ${parkingLot.CheckIn(motorcycle1).mkString(",")}")
+  println(s"Parking motorcycle2: ${parkingLot.CheckIn(motorcycle2).mkString(",")}")
+  println(s"Parking car1: ${parkingLot.CheckIn(car1).mkString(",")}")
+  println(s"Parking car2: ${parkingLot.CheckIn(car2).mkString(",")}")
+  println(s"Parking van1: ${parkingLot.CheckIn(van1).mkString(",")}")
+  println(s"Parking car3: ${parkingLot.CheckIn(car3).mkString(",")}")
 
   parkingLot.printCurrentState()
 
   // Car 1 leaves
-  parkingLot.freeSpot(car1)
+  parkingLot.CheckOut(car1)
   println("car1 leaves")
 
   // Car 3 leaves
-  parkingLot.freeSpot(car3)
+  parkingLot.CheckOut(car3)
   println("car3 leaves")
 
   parkingLot.printCurrentState()
 
   // Van 2 parks
-  println(s"Parking van2: ${parkingLot.park(van2).mkString(",")}")
+  println(s"Parking van2: ${parkingLot.CheckIn(van2).mkString(",")}")
 
   parkingLot.printCurrentState()
-
-  // Check remaining spots and parking lot status
-  println(s"Remaining spots: ${parkingLot.remainingSpots}")
-  println(s"Is the lot full? ${parkingLot.isFull}")
-  println(s"Is the lot empty? ${parkingLot.isEmpty}")
 }
