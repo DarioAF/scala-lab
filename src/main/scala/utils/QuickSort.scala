@@ -1,6 +1,6 @@
 package utils
 
-object Quicksort extends App {
+object QuickSort extends App {
 
   /*
 ┌───────────────┬────────────┬────────────────┐
