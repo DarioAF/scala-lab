@@ -1,6 +1,9 @@
 package practice.design
 
-import scala.util.boundary, boundary.break
+import scala.util.boundary
+import boundary.break
+import scala.annotation.tailrec
+import scala.util.Random
 
 val emptySpace: Char = '.'
 val connectNumber: Int = 4
@@ -8,6 +11,8 @@ val connectNumber: Int = 4
 case class Player(name: String) {
   def codeName: Char = name.charAt(0)
 }
+
+case class Box(value: Char, pos: (Int, Int))
 
 class Board(private val cols: Int, private val rows: Int) {
   private val board: Array[Array[Char]] = Array.fill(cols, rows)(emptySpace)
@@ -30,43 +35,46 @@ class Board(private val cols: Int, private val rows: Int) {
     }
   }
 
-  def getStar(row: Int, col: Int, long: Int = connectNumber): Seq[Seq[Char]] = {
+  def getStar(col: Int, row: Int, long: Int = connectNumber): Seq[Seq[Box]] = {
     // ← → // (1, 1) => (0, 1) (1, 1) (2, 1)
-    val horizontal = (row - (long - 1) until row + long).filter(r => r >= 0 && r < cols).map(r => getVal(r, col))
+    val horizontal = (col - (long - 1) until col + long).filter(c => c >= 0 && c < cols).map(c =>
+      Box(getVal(c, row), (c, row))
+    )
 
     // ↑ ↓ // (1, 1) => (1, 0) (1, 1) (1, 2)
-    val vertical = (col - (long - 1) until col + long).filter(c => c >= 0 && c < rows).map(c => getVal(row, c))
+    val vertical = (row - (long - 1) until row + long).filter(r => r >= 0 && r < rows).map(r =>
+      Box(getVal(col, r), (col, r))
+    )
 
     // ↙ ↗ // (1, 1) => (0, 0) (1, 1) (2, 2)
     val diagonal1 =
-      ((row - (long - 1) until row) ++ (row until row + long))
-        .zip((col - (long - 1) until col) ++ (col until col + long))
-        .filter((r, c) => r >= 0 && r < cols && c >= 0 && c < rows)
-        .map((r, c) => getVal(r, c))
+      ((col - (long - 1) until col) ++ (col until col + long))
+        .zip((row - (long - 1) until row) ++ (row until row + long))
+        .filter((c, r) => c >= 0 && c < cols && r >= 0 && r < rows)
+        .map((c, r) => Box(getVal(c, r), (c, r)))
 
     // ↖ ↘ // (1, 1) => (0, 2) (1, 1) (2, 0)
     val diagonal2 =
-      ((row - (long - 1) until row) ++ (row until row + long))
-        .zip((col + (long - 1) until col by -1) ++ (col to col - (long - 1) by -1))
-        .filter((r, c) => r >= 0 && r < cols && c >= 0 && c < rows)
-        .map((r, c) => getVal(r, c))
+      ((col - (long - 1) until col) ++ (col until col + long))
+        .zip((row + (long - 1) until row by -1) ++ (row to row - (long - 1) by -1))
+        .filter((c, r) => c >= 0 && c < cols && r >= 0 && r < rows)
+        .map((c, r) => Box(getVal(c, r), (c, r)))
 
     Seq(horizontal, vertical, diagonal1, diagonal2)
   }
 
-  override def toString: String = {
+  def toString(highlighted: Seq[(Int, Int)]): String = {
     /*
       (0, 0) (0, 1) (0, 2)  <- 0
       (1, 0) (1, 1) (1, 2)  <- 1
       (2, 0) (2, 1) (2, 2)  <- 2
     */
-    lazy val original = (sb: StringBuilder) =>
-      (0 until cols).foreach { r =>
-        (0 until rows).foreach { c =>
-          //sb ++= s"${board(r)(c)} "
-          sb ++= s"($r, $c) "
+    def original(sb: StringBuilder)(p: (c: Int, r: Int) => String): Unit =
+      (0 until cols).foreach { c =>
+        (0 until rows).foreach { r =>
+          sb ++= p(c, r)
         }
-        sb ++= s" <- $r\n"
+        sb ++= s" <- $c\n"
       }
 
     /* ↓      ↓      ↓
@@ -74,67 +82,80 @@ class Board(private val cols: Int, private val rows: Int) {
       (0, 1) (1, 1) (2, 1)
       (0, 0) (1, 0) (2, 0)
     */
-    lazy val rotated = (sb: StringBuilder) =>
+    def rotated(sb: StringBuilder)(p: (c: Int, r: Int) => String): Unit =
       (rows - 1 to 0 by -1).foreach { r =>
         (0 until cols).foreach { c =>
-          sb ++= s"${board(c)(r)} "
-          //sb ++= s"($c, $r) "
+          sb ++= p(c, r)
         }
         sb ++= "\n"
       }
 
+    def highlight(c: Int, r: Int): String = {
+      val v = board(c)(r)
+      val isHighlighted: Boolean = highlighted.contains((c, r))
+      if (isHighlighted) Console.GREEN + s"$v " + Console.RESET else s"$v "
+    }
+
     val sb = new StringBuilder()
     sb ++= "---\n"
-    rotated(sb)
-//  original(sb)
+    rotated(sb)(highlight)
+//    original(sb)((c: Int, r: Int) =>
+////      s"($c, $r) "
+//      s"${board(c)(r)} "
+//    )
     sb ++= "---\n"
     sb.toString()
   }
+
+  override def toString: String = toString(Seq.empty)
 }
 
-class Game {
-  private val (cols, rows) = (7, 6)
+class Game(cols: Int, rows: Int) {
   private val board = new Board(cols, rows)
 
-  def play(player: Player, pos: Int): Unit = {
+  def play(player: Player, pos: Int): Boolean = {
     board.update(pos, player.codeName) match {
-      case Left(e) => println(s"$player -> $e")
+      case Left(e) =>
+        println(s"${player.name} -> $e")
+        printBoard()
+        true
       case Right(c, r) =>
-        val winner: Boolean = isWinner(board.getStar(c, r), player.codeName)
-        println(s"${player.name} -> ($c, $r) ${if (winner) "Winner!" else ""}")
+        val connected = connectedWinPos(board.getStar(c, r), player.codeName)
+        println(s"${player.name} -> ($c, $r) ${if (connected.nonEmpty) "Winner!" else ""}")
+        if (connected.nonEmpty) {
+          printBoard(connected)
+          true
+        } else false
     }
   }
 
-  def isWinner(star: Seq[Seq[Char]], code: Char): Boolean = {
-    def tailrec(rem: Seq[Char], acc: Int): Boolean = {
-      if (acc == connectNumber) true
-      else if (rem.isEmpty) false
-      else if (rem.head == code) tailrec(rem.tail, acc + 1)
-      else tailrec(rem.tail, 0)
+  private def connectedWinPos(star: Seq[Seq[Box]], code: Char): Seq[(Int, Int)] = {
+    @tailrec def tailrec(rem: Seq[Box], acc: List[Box]): Seq[Box] = {
+      if (acc.size == connectNumber) acc
+      else if (rem.isEmpty) List.empty
+      else if (rem.head.value == code) tailrec(rem.tail, rem.head :: acc)
+      else tailrec(rem.tail, List.empty)
     }
-
-    star.exists(l => tailrec(l, 0))
+    val winPos = star.map(l => tailrec(l, List.empty)).filter(_.nonEmpty)
+    if (winPos.isEmpty) Seq.empty
+    else winPos.head.map(b => (b.pos._1, b.pos._2))
   }
 
-  def printBoard(): Unit = println(board.toString)
+  private def printBoard(h: Seq[(Int, Int)] = Seq.empty): Unit = println(board.toString(h))
 }
 
 object ConnectFour extends App {
+  val (cols, rows) = (7, 6)
+  val game = new Game(cols, rows)
   val playerA = Player("A")
   val playerB = Player("B")
 
-  val game = new Game
+  @tailrec private def randomPlay(turn: Player, ended: Boolean): Unit = {
+    if (ended) return
+    val rndCol = Random.nextInt(cols)
+    val next = if (turn == playerA) playerB else playerA
+    randomPlay(next, game.play(turn, rndCol))
+  }
 
-  game.play(playerA, 0)
-  game.play(playerB, 1)
-  game.play(playerA, 1)
-  game.play(playerB, 2)
-  game.play(playerB, 2)
-  game.play(playerA, 2)
-  game.play(playerB, 3)
-  game.play(playerB, 3)
-  game.play(playerB, 3)
-  game.play(playerA, 3)
-
-  game.printBoard()
+  randomPlay(playerA, false)
 }
