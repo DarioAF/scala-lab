@@ -16,7 +16,7 @@ object CodeMessage extends App {
       if (remaining.isEmpty) res
       else {
         val c = remaining.head
-        if (vowels.contains(c) && prev != c) {
+        if (vowels.contains(c) && !vowels.contains(prev)) {
           tailrec(remaining.tail, c, res + "av" + c)
         } else {
           tailrec(remaining.tail, c, res + c)
@@ -27,7 +27,18 @@ object CodeMessage extends App {
     tailrec(str, '1', "")
   }
 
-  val text = "hello world"
-  println("original: " + text)
-  println(translate("coded: " + text))
+  Seq(
+    ("", ""),
+    ("hello", "havellavo"),
+    ("world", "wavorld"),
+    ("abaalonii", "avabavaalavonavii"),
+    ("aeiou", "avaeiou"),
+  ).foreach { (input, expected) =>
+    val actual = translate(input)
+    if (actual == expected) {
+      println(s"$input -> $actual ✅")
+    } else {
+      println(s"expected: $expected got: $actual ❌")
+    }
+  }
 }
