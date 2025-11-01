@@ -65,7 +65,7 @@ case class ::[+T](override val head: T, override val tail: MyList[T]) extends My
     @tailrec def toStringTailrec(remaining: MyList[T], result: String = ""): String = {
       if (remaining.isEmpty) result
       else if (remaining.tail.isEmpty) s"$result${remaining.head}"
-      else toStringTailrec(remaining.tail, s"$result${remaining.head}, ")
+      else toStringTailrec(remaining.tail, s"$result${remaining.head} -> ")
     }
 
     "[" + toStringTailrec(this) + "]"
