@@ -7,27 +7,22 @@ import scala.annotation.tailrec
  * https://leetcode.com/problems/find-x-sum-of-all-k-long-subarrays-i
  */
 object FindXSumAllKLongSubArraysI extends App {
-  private def calcN(window: Array[Int], x: Int): Int = window
-    .groupBy(identity)
-    .view
-    .mapValues(_.length)
-    .toSeq
-    .sortBy { case (num, count) => (-count, -num) }  // sort descending by count, then number
-    .take(x)
-    .map { case (num, count) => num * count }
-    .sum
+  private def calcN(window: Array[Int], x: Int): Int =
+    window
+      .groupBy(identity)
+      .view
+      .mapValues(_.length)
+      .toSeq
+      .sortBy { case (num, count) => (-count, -num) }  // sort descending by count, then number
+      .take(x)
+      .map { case (num, count) => num * count }
+      .sum
 
-  def findXSum(nums: Array[Int], k: Int, x: Int): Array[Int] = {
-    @tailrec
-    def loop(i: Int = 0, j: Int = k, res: Array[Int] = Array.empty): Array[Int] = {
-      if (j >= nums.length) {
-        res :+ calcN(nums.slice(i, j), x)
-      } else {
-        loop(i + 1, j + 1, res :+ calcN(nums.slice(i, j), x))
-      }
-    }
-    loop()
-  }
+  def findXSum(nums: Array[Int], k: Int, x: Int): Array[Int] =
+    nums
+      .sliding(k)
+      .map(window => calcN(window, x))
+      .toArray
 
   Seq(
     ((Array(1, 1, 2, 2, 3, 4, 2, 3), 6, 2), Array(6, 10, 12)),
